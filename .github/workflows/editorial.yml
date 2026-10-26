@@ -1,0 +1,48 @@
+name: Editorial checks
+
+# Prosekeep checks the prose this repository writes, against the rules turned on in .editorial.json.
+# It skips docs/domain/, which quotes federal law, and docs/review/, which is generated from the rows.
+# It also skips .prosekeep/, its own checkout below, which would otherwise be linted as if it were ours.
+#
+# Prosekeep is pinned to a commit rather than an npm version, because npm serves 0.2.0 and these
+# rules need 0.3.0. When 0.3.0 is published, replace the second checkout and the two `node` calls
+# with `npx prosekeep@0.3.0`. Prosekeep is released under CC0 1.0.
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PROSEKEEP_REPO: quarterback/prosekeep
+  PROSEKEEP_COMMIT: 110ec586c17c72fb1bd9a9a51f44417db5853cd5
+
+jobs:
+  prose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout HourKeep
+        uses: actions/checkout@v4
+
+      - name: Checkout Prosekeep at its pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PROSEKEEP_REPO }}
+          ref: ${{ env.PROSEKEEP_COMMIT }}
+          path: .prosekeep
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Check every file the policy covers
+        run: node .prosekeep/bin/prosekeep.mjs check .
+
+      # audit always exits 0. It puts the outlines and any repeated paragraph in the log for a
+      # reviewer. Only `check` fails a run.
+      - name: Report the outlines and any repeated paragraph
+        run: node .prosekeep/bin/prosekeep.mjs audit .
